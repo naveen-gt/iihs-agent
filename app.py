@@ -13,16 +13,37 @@ else:
     st.error("Please add your Gemini API Key!")
 
 # 3. Define the Campus Knowledge (The "Vibe" Data)
+# 3. Define the Campus Knowledge (Deepened with IIHS Knowledge Gateway Data)
 CAMPUS_DATA = {
     "experimental": {
-        "name": "Experimental Building",
-        "facts": "Uses CSEB (Compressed Stabilized Earth Blocks), passive cooling, stack effect ventilation, and local soil construction.",
-        "prompt": "You are an expert architect at IIHS. Explain the Experimental Building's sustainability features simply."
+        "name": "Experimental Building (Living Lab)",
+        "facts": """
+            The Experimental Building is a 'Living Lab' prototype for net-zero carbon campus living. 
+            Key features: 
+            - Construction: Built using Compressed Stabilized Earth Blocks (CSEB) made from local soil to reduce carbon footprint.
+            - Passive Design: Uses the 'Stack Effect' for ventilation (hot air exits top vents, drawing cool air in).
+            - Cooling: High thermal mass walls regulate temperature naturally.
+            - Labs: Houses the IIHS Environmental Lab, Media Lab, and the Internet of Things (IoT) Lab.
+            - Architecture: Designed to test modularity for the rest of the 54-acre Kengeri campus.
+        """,
+        "prompt": """
+            You are a senior researcher at the IIHS Kengeri Campus. 
+            Use these core principles in your explanation:
+            1. Passive Building Design (Natural light/air).
+            2. Materiality (Low embodied carbon in earth blocks).
+            3. Monitoring (How the labs measure heat and energy).
+            Be technical but accessible to students. Mention that this building was a prototype for the whole campus.
+        """
     },
     "stp": {
-        "name": "Sewage Treatment Plant (STP)",
-        "facts": "Decentralized system, treats campus wastewater for landscaping, uses biological processes.",
-        "prompt": "You are an environmental engineer. Explain how this STP turns waste into a resource."
+        "name": "Wastewater Treatment (STP)",
+        "facts": """
+            The Kengeri campus uses a decentralized circular water system.
+            - Objective: Near net-zero municipal water use.
+            - Process: Uses biological treatment to recycle wastewater for landscaping and agriculture.
+            - Research: Part of the 'Flowing towards Sustainability' study on campus water management.
+        """,
+        "prompt": "You are a water systems engineer. Explain the circular water economy at IIHS."
     }
 }
 
