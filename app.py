@@ -2,6 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 from gtts import gTTS
 import base64
+import os
 
 # 1. Setup
 st.set_page_config(page_title="IIHS Kengeri Guide", page_icon="🏫")
@@ -11,57 +12,62 @@ st.title("🌿 IIHS Kengeri: Living Lab Guide")
 if "GEMINI_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 else:
-    st.error("Missing API Key in Secrets!")
+    st.error("Missing API Key in Secrets! Go to Advanced Settings > Secrets.")
 
 # 2. Knowledge Base
 CAMPUS_DATA = {
     "experimental": {
         "name": "Experimental Building",
-        "facts": "Built with CSEB blocks and passive stack-effect cooling.",
-        "prompt": "You are an IIHS expert. Explain the Experimental Building simply."
+        "facts": "Built with CSEB blocks and passive stack-effect cooling. Prototype for net-zero living.",
+        "prompt": "You are an IIHS expert. Explain the Experimental Building simply and briefly."
     },
     "stp": {
         "name": "STP",
-        "facts": "Recycles campus water for landscaping.",
-        "prompt": "Explain the IIHS water recycling system."
+        "facts": "Recycles campus water for landscaping. Circular economy in action.",
+        "prompt": "Explain the IIHS water recycling system briefly."
     }
 }
 
-site_info = CAMPUS_DATA.get(st.query_params.get("site", "experimental"), CAMPUS_DATA["experimental"])
+# Site selection
+site_key = st.query_params.get("site", "experimental")
+site_info = CAMPUS_DATA.get(site_key, CAMPUS_DATA["experimental"])
 
-# 3. Voice Toggle
+# 3. Sidebar
+st.sidebar.title("Guide Settings")
 voice_on = st.sidebar.toggle("Enable Voice Guide 🔊", value=True)
+st.subheader(f"📍 Location: {site_info['name']}")
 
-# 4. NEW 2026 NATIVE VOICE INPUT
-st.write("### Ask a Question")
-# This is the new way: no extra libraries needed
-audio_input = st.audio_input("Record your question") 
-text_input = st.chat_input("Or type here...")
+# 4. NATIVE 2026 INPUTS
+# st.audio_input is the new official way to record on mobile
+audio_value = st.audio_input("Record a question")
+text_value = st.chat_input("Or type here...")
 
-# 5. Logic to handle either Voice or Text
-prompt = None
-if text_input:
-    prompt = text_input
-elif audio_input:
-    # In 2026, Gemini can 'hear' the audio file directly!
-    prompt = audio_input
+# 5. Logic
+prompt_input = None
+if text_value:
+    prompt_input = text_value
+elif audio_value:
+    prompt_input = audio_value
 
-if prompt:
-    with st.chat_message("user"):
-        st.write("Processing your request...")
-    
+if prompt_input:
     with st.chat_message("assistant"):
+        # We use Gemini 3.1 Flash which handles audio and text natively
         model = genai.GenerativeModel('gemini-3.1-flash')
-        # We send the text or audio directly to Gemini
-        response = model.generate_content([f"Context: {site_info['facts']}. Task: {site_info['prompt']}", prompt])
+        
+        # Send context + the user's voice/text
+        context = f"Context: {site_info['facts']}. Task: {site_info['prompt']}"
+        response = model.generate_content([context, prompt_input])
+        
         st.markdown(response.text)
         
-        # 6. Simple Text-to-Speech (The Vibe Way)
+        # 6. Auto-Play Speech
         if voice_on:
             tts = gTTS(text=response.text, lang='en')
-            tts.save("response.mp3")
-            with open("response.mp3", "rb") as f:
+            tts.save("speech.mp3")
+            with open("speech.mp3", "rb") as f:
                 data = f.read()
                 b64 = base64.b64encode(data).decode()
-                md = f'<audio autoplay="true" src="data:audio/mp3;base64,{b64}">'
-                st.markdown(md, unsafe_allow_body=True)
+                # Browser-native autoplay hack
+                audio_html = f'<audio src="data:audio/mp3;base64,{b64}" autoplay="true">'
+                st.markdown(audio_html, unsafe_allow_html=True)
+            os.remove("speech.mp3")
