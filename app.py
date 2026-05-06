@@ -1,98 +1,67 @@
 import streamlit as st
 import google.generativeai as genai
-from streamlit_TTS import text_to_speech
+from gtts import gTTS
+import base64
 
-# 1. Setup the Vibe
-st.set_page_config(page_title="IIHS Kengeri Guide", page_icon="🏫", layout="centered")
+# 1. Setup
+st.set_page_config(page_title="IIHS Kengeri Guide", page_icon="🏫")
 st.title("🌿 IIHS Kengeri: Living Lab Guide")
 
-# 2. Sidebar Settings
-st.sidebar.title("Settings")
-voice_on = st.sidebar.toggle("Enable Voice Guide 🔊", value=True)
-
-# API Key Configuration
+# API Key
 if "GEMINI_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 else:
-    st.error("Please add your Gemini API Key in Streamlit Secrets!")
+    st.error("Missing API Key in Secrets!")
 
-# 3. Knowledge Base (Experimental Building + STP)
+# 2. Knowledge Base
 CAMPUS_DATA = {
     "experimental": {
-        "name": "Experimental Building (Living Lab)",
-        "facts": """
-            The Experimental Building is a 'Living Lab' prototype for net-zero carbon campus living. 
-            - Built using Compressed Stabilized Earth Blocks (CSEB) from local soil.
-            - Passive Design: Uses the 'Stack Effect' for ventilation (hot air exits top, cool air draws in).
-            - Cooling: High thermal mass walls regulate temperature naturally.
-            - Labs: Houses IIHS Environmental Lab, Media Lab, and IoT Lab.
-        """,
-        "prompt": "You are a senior researcher at IIHS. Explain the Experimental Building's sustainability simply. Keep it short for a tour."
+        "name": "Experimental Building",
+        "facts": "Built with CSEB blocks and passive stack-effect cooling.",
+        "prompt": "You are an IIHS expert. Explain the Experimental Building simply."
     },
     "stp": {
-        "name": "Wastewater Treatment (STP)",
-        "facts": """
-            Decentralized circular water system.
-            - Objective: Near net-zero municipal water use.
-            - Process: Biological treatment for recycling water for landscaping.
-        """,
-        "prompt": "You are a water engineer at IIHS. Explain the circular water economy briefly."
+        "name": "STP",
+        "facts": "Recycles campus water for landscaping.",
+        "prompt": "Explain the IIHS water recycling system."
     }
 }
 
-# Detect location from URL (?site=experimental)
-query_params = st.query_params
-current_site_key = query_params.get("site", "experimental")
-site_info = CAMPUS_DATA.get(current_site_key, CAMPUS_DATA["experimental"])
+site_info = CAMPUS_DATA.get(st.query_params.get("site", "experimental"), CAMPUS_DATA["experimental"])
 
-st.subheader(f"📍 Location: {site_info['name']}")
-st.info(site_info['facts'])
+# 3. Voice Toggle
+voice_on = st.sidebar.toggle("Enable Voice Guide 🔊", value=True)
 
-# 4. Chat Interface
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+# 4. NEW 2026 NATIVE VOICE INPUT
+st.write("### Ask a Question")
+# This is the new way: no extra libraries needed
+audio_input = st.audio_input("Record your question") 
+text_input = st.chat_input("Or type here...")
 
-# Display history
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+# 5. Logic to handle either Voice or Text
+prompt = None
+if text_input:
+    prompt = text_input
+elif audio_input:
+    # In 2026, Gemini can 'hear' the audio file directly!
+    prompt = audio_input
 
-# Input: Native 2026 Microphone + Text
-if prompt := st.chat_input("Ask or tap the mic...", accept_audio=True):
-    
-    # Check if input was voice or text
-    user_text = prompt.text if isinstance(prompt, dict) else prompt
-
-    # Add user message
-    st.session_state.messages.append({"role": "user", "content": user_text})
+if prompt:
     with st.chat_message("user"):
-        st.markdown(user_text)
-
-    # 5. Agent Response using Gemini 3.1 Flash
+        st.write("Processing your request...")
+    
     with st.chat_message("assistant"):
-        # Updated to May 2026 stable model
         model = genai.GenerativeModel('gemini-3.1-flash')
-        
-        full_prompt = f"{site_info['prompt']}. Site Facts: {site_info['facts']}. Question: {user_text}"
-        response = model.generate_content(full_prompt)
-        
+        # We send the text or audio directly to Gemini
+        response = model.generate_content([f"Context: {site_info['facts']}. Task: {site_info['prompt']}", prompt])
         st.markdown(response.text)
-        st.session_state.messages.append({"role": "assistant", "content": response.text})
-
-        # 6. Audio Playback (If enabled)
+        
+        # 6. Simple Text-to-Speech (The Vibe Way)
         if voice_on:
-            text_to_speech(response.text, language='en')
-
-# 7. Vision Feature
-with st.expander("📸 Identify a Feature"):
-    img_file = st.camera_input("Take a photo of a building component")
-    if img_file:
-        model_vision = genai.GenerativeModel('gemini-3.1-flash')
-        img_bytes = img_file.getvalue()
-        res = model_vision.generate_content([
-            "Identify this IIHS campus feature and explain its sustainability value briefly.",
-            {"mime_type": "image/jpeg", "data": img_bytes}
-        ])
-        st.write(res.text)
-        if voice_on:
-            text_to_speech(res.text, language='en')
+            tts = gTTS(text=response.text, lang='en')
+            tts.save("response.mp3")
+            with open("response.mp3", "rb") as f:
+                data = f.read()
+                b64 = base64.b64encode(data).decode()
+                md = f'<audio autoplay="true" src="data:audio/mp3;base64,{b64}">'
+                st.markdown(md, unsafe_allow_body=True)
