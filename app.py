@@ -72,7 +72,7 @@ if prompt := st.chat_input("Ask me anything about this spot..."):
 
     # Agent Response Logic
     with st.chat_message("assistant"):
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-3-flash-preview')
         full_context = f"{site_info['prompt']}. Context: {site_info['facts']}. Question: {prompt}"
         response = model.generate_content(full_context)
         st.markdown(response.text)
@@ -82,7 +82,7 @@ if prompt := st.chat_input("Ask me anything about this spot..."):
 with st.expander("📸 Identify a Feature (Experimental)"):
     img_file = st.camera_input("Take a photo of a building component")
     if img_file:
-        model_vision = genai.GenerativeModel('gemini-1.5-flash')
+        model_vision = genai.GenerativeModel('gemini-3-flash-preview')
         img_bytes = img_file.getvalue()
         # Vibe coding the vision prompt
         res = model_vision.generate_content([
