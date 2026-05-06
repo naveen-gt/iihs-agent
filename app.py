@@ -1,92 +1,98 @@
 import streamlit as st
 import google.generativeai as genai
+from streamlit_TTS import text_to_speech
 
 # 1. Setup the Vibe
-st.set_page_config(page_title="IIHS Kengeri Guide", page_icon="🏫")
+st.set_page_config(page_title="IIHS Kengeri Guide", page_icon="🏫", layout="centered")
 st.title("🌿 IIHS Kengeri: Living Lab Guide")
 
-# 2. Get your Free API Key from secrets (Streamlit Cloud handles this)
-# For local testing, you can just paste your key here: genai.configure(api_key="YOUR_KEY_HERE")
+# 2. Sidebar Settings
+st.sidebar.title("Settings")
+voice_on = st.sidebar.toggle("Enable Voice Guide 🔊", value=True)
+
+# API Key Configuration
 if "GEMINI_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 else:
-    st.error("Please add your Gemini API Key!")
+    st.error("Please add your Gemini API Key in Streamlit Secrets!")
 
-# 3. Define the Campus Knowledge (The "Vibe" Data)
-# 3. Define the Campus Knowledge (Deepened with IIHS Knowledge Gateway Data)
+# 3. Knowledge Base (Experimental Building + STP)
 CAMPUS_DATA = {
     "experimental": {
         "name": "Experimental Building (Living Lab)",
         "facts": """
             The Experimental Building is a 'Living Lab' prototype for net-zero carbon campus living. 
-            Key features: 
-            - Construction: Built using Compressed Stabilized Earth Blocks (CSEB) made from local soil to reduce carbon footprint.
-            - Passive Design: Uses the 'Stack Effect' for ventilation (hot air exits top vents, drawing cool air in).
+            - Built using Compressed Stabilized Earth Blocks (CSEB) from local soil.
+            - Passive Design: Uses the 'Stack Effect' for ventilation (hot air exits top, cool air draws in).
             - Cooling: High thermal mass walls regulate temperature naturally.
-            - Labs: Houses the IIHS Environmental Lab, Media Lab, and the Internet of Things (IoT) Lab.
-            - Architecture: Designed to test modularity for the rest of the 54-acre Kengeri campus.
+            - Labs: Houses IIHS Environmental Lab, Media Lab, and IoT Lab.
         """,
-        "prompt": """
-            You are a senior researcher at the IIHS Kengeri Campus. 
-            Use these core principles in your explanation:
-            1. Passive Building Design (Natural light/air).
-            2. Materiality (Low embodied carbon in earth blocks).
-            3. Monitoring (How the labs measure heat and energy).
-            Be technical but accessible to students. Mention that this building was a prototype for the whole campus.
-        """
+        "prompt": "You are a senior researcher at IIHS. Explain the Experimental Building's sustainability simply. Keep it short for a tour."
     },
     "stp": {
         "name": "Wastewater Treatment (STP)",
         "facts": """
-            The Kengeri campus uses a decentralized circular water system.
+            Decentralized circular water system.
             - Objective: Near net-zero municipal water use.
-            - Process: Uses biological treatment to recycle wastewater for landscaping and agriculture.
-            - Research: Part of the 'Flowing towards Sustainability' study on campus water management.
+            - Process: Biological treatment for recycling water for landscaping.
         """,
-        "prompt": "You are a water systems engineer. Explain the circular water economy at IIHS."
+        "prompt": "You are a water engineer at IIHS. Explain the circular water economy briefly."
     }
 }
 
-# 4. Detect location from the URL (e.g., app.url/?site=experimental)
+# Detect location from URL (?site=experimental)
 query_params = st.query_params
-current_site_key = query_params.get("site", "experimental") # Defaults to experimental
-site_info = CAMPUS_DATA.get(current_site_key)
+current_site_key = query_params.get("site", "experimental")
+site_info = CAMPUS_DATA.get(current_site_key, CAMPUS_DATA["experimental"])
 
-st.subheader(f"📍 You are at: {site_info['name']}")
+st.subheader(f"📍 Location: {site_info['name']}")
 st.info(site_info['facts'])
 
-# 5. The Agent Interaction
+# 4. Chat Interface
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display chat history
+# Display history
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Chat Input
-if prompt := st.chat_input("Ask me anything about this spot..."):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+# Input: Native 2026 Microphone + Text
+if prompt := st.chat_input("Ask or tap the mic...", accept_audio=True):
+    
+    # Check if input was voice or text
+    user_text = prompt.text if isinstance(prompt, dict) else prompt
 
-    # Agent Response Logic
+    # Add user message
+    st.session_state.messages.append({"role": "user", "content": user_text})
+    with st.chat_message("user"):
+        st.markdown(user_text)
+
+    # 5. Agent Response using Gemini 3.1 Flash
     with st.chat_message("assistant"):
-        model = genai.GenerativeModel('gemini-3-flash-preview')
-        full_context = f"{site_info['prompt']}. Context: {site_info['facts']}. Question: {prompt}"
-        response = model.generate_content(full_context)
+        # Updated to May 2026 stable model
+        model = genai.GenerativeModel('gemini-3.1-flash')
+        
+        full_prompt = f"{site_info['prompt']}. Site Facts: {site_info['facts']}. Question: {user_text}"
+        response = model.generate_content(full_prompt)
+        
         st.markdown(response.text)
         st.session_state.messages.append({"role": "assistant", "content": response.text})
 
-# 6. Bonus: The "Vision" Feature (Let students take a photo)
-with st.expander("📸 Identify a Feature (Experimental)"):
+        # 6. Audio Playback (If enabled)
+        if voice_on:
+            text_to_speech(response.text, language='en')
+
+# 7. Vision Feature
+with st.expander("📸 Identify a Feature"):
     img_file = st.camera_input("Take a photo of a building component")
     if img_file:
-        model_vision = genai.GenerativeModel('gemini-3-flash-preview')
+        model_vision = genai.GenerativeModel('gemini-3.1-flash')
         img_bytes = img_file.getvalue()
-        # Vibe coding the vision prompt
         res = model_vision.generate_content([
-            "Identify what part of the sustainable building this is and why it matters.",
+            "Identify this IIHS campus feature and explain its sustainability value briefly.",
             {"mime_type": "image/jpeg", "data": img_bytes}
         ])
         st.write(res.text)
+        if voice_on:
+            text_to_speech(res.text, language='en')
